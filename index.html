@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI Track Splitter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f8f9ff;
+        }
+        
+        .upload-area.dragover {
+            background: #f0f2ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        .upload-area p {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .upload-area input {
+            display: none;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .tracks-container {
+            display: none;
+        }
+        
+        .tracks-container.active {
+            display: block;
+        }
+        
+        .file-info {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .file-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .file-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+        
+        .track-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .track-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .track-item:hover {
+            background: #f0f2ff;
+            transform: translateX(5px);
+        }
+        
+        .track-info {
+            flex: 1;
+        }
+        
+        .track-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .track-details {
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎵 MIDI Track Splitter</h1>
+            <p>Load a MIDI file and download individual tracks</p>
+        </div>
+        
+        <div class="content">
+            <div class="error" id="error"></div>
+            
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <p><strong>Click to upload</strong> or drag and drop</p>
+                <p style="font-size: 12px; color: #999;">MIDI files (.mid, .midi)</p>
+                <input type="file" id="fileInput" accept=".mid,.midi">
+            </div>
+            
+            <div class="tracks-container" id="tracksContainer">
+                <div class="file-info" id="fileInfo"></div>
+                <div class="track-list" id="trackList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const tracksContainer = document.getElementById('tracksContainer');
+        const trackList = document.getElementById('trackList');
+        const fileInfo = document.getElementById('fileInfo');
+        const errorDiv = document.getElementById('error');
+        
+        let midiData = null;
+        let parsedMidi = null;
+        
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) handleFile(file);
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        });
+        
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('active');
+            setTimeout(() => errorDiv.classList.remove('active'), 5000);
+        }
+        
+        function handleFile(file) {
+            if (!file.name.match(/\.(mid|midi)$/i)) {
+                showError('Please select a valid MIDI file');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    midiData = new Uint8Array(e.target.result);
+                    parsedMidi = parseMidi(midiData);
+                    displayTracks(file.name);
+                } catch (err) {
+                    showError('Error parsing MIDI file: ' + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function parseMidi(data) {
+            let pos = 0;
+            
+            function readChars(n) {
+                return String.fromCharCode(...data.slice(pos, pos += n));
+            }
+            
+            function readInt(n) {
+                let val = 0;
+                for (let i = 0; i < n; i++) {
+                    val = (val << 8) | data[pos++];
+                }
+                return val;
+            }
+            
+            function readVarLen() {
+                let val = 0;
+                let byte;
+                do {
+                    byte = data[pos++];
+                    val = (val << 7) | (byte & 0x7f);
+                } while (byte & 0x80);
+                return val;
+            }
+            
+            const header = readChars(4);
+            if (header !== 'MThd') throw new Error('Invalid MIDI file');
+            
+            const headerLen = readInt(4);
+            const format = readInt(2);
+            const numTracks = readInt(2);
+            const division = readInt(2);
+            
+            const tracks = [];
+            
+            for (let i = 0; i < numTracks; i++) {
+                const trackHeader = readChars(4);
+                if (trackHeader !== 'MTrk') throw new Error('Invalid track header');
+                
+                const trackLen = readInt(4);
+                const trackStart = pos;
+                const trackData = data.slice(trackStart, trackStart + trackLen);
+                
+                let trackName = `Track ${i + 1}`;
+                let noteCount = 0;
+                let tPos = 0;
+                
+                while (tPos < trackData.length) {
+                    const delta = readVarLen.call({}, trackData, tPos);
+                    let vPos = 0;
+                    const vRead = () => {
+                        let val = 0, byte;
+                        do {
+                            byte = trackData[tPos + vPos++];
+                            val = (val << 7) | (byte & 0x7f);
+                        } while (byte & 0x80);
+                        return val;
+                    };
+                    vRead();
+                    tPos += vPos;
+                    
+                    if (tPos >= trackData.length) break;
+                    
+                    let status = trackData[tPos++];
+                    
+                    if (status === 0xFF) {
+                        const type = trackData[tPos++];
+                        const len = trackData[tPos++];
+                        
+                        if (type === 0x03 && len > 0) {
+                            trackName = String.fromCharCode(...trackData.slice(tPos, tPos + len));
+                        }
+                        tPos += len;
+                    } else if (status === 0xF0 || status === 0xF7) {
+                        const len = trackData[tPos++];
+                        tPos += len;
+                    } else {
+                        if ((status & 0x80) === 0) {
+                            tPos--;
+                        } else {
+                            const cmd = status & 0xF0;
+                            if (cmd === 0x90 || cmd === 0x80) noteCount++;
+                            
+                            if (cmd === 0xC0 || cmd === 0xD0) {
+                                tPos += 1;
+                            } else {
+                                tPos += 2;
+                            }
+                        }
+                    }
+                }
+                
+                tracks.push({
+                    name: trackName,
+                    data: trackData,
+                    noteCount: noteCount
+                });
+                
+                pos = trackStart + trackLen;
+            }
+            
+            return { format, numTracks, division, tracks };
+        }
+        
+        function displayTracks(filename) {
+            fileInfo.innerHTML = `
+                <h3>${filename}</h3>
+                <p>Format: ${parsedMidi.format} | Tracks: ${parsedMidi.numTracks} | Division: ${parsedMidi.division}</p>
+            `;
+            
+            trackList.innerHTML = '';
+            
+            parsedMidi.tracks.forEach((track, index) => {
+                const trackItem = document.createElement('div');
+                trackItem.className = 'track-item';
+                trackItem.innerHTML = `
+                    <div class="track-info">
+                        <div class="track-name">${track.name}</div>
+                        <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes</div>
+                    </div>
+                    <button class="download-btn" onclick="downloadTrack(${index})">Download</button>
+                `;
+                trackList.appendChild(trackItem);
+            });
+            
+            tracksContainer.classList.add('active');
+        }
+        
+        function downloadTrack(index) {
+            const track = parsedMidi.tracks[index];
+            
+            const header = new Uint8Array([
+                0x4D, 0x54, 0x68, 0x64,
+                0x00, 0x00, 0x00, 0x06,
+                0x00, 0x00,
+                0x00, 0x01,
+                (parsedMidi.division >> 8) & 0xFF, parsedMidi.division & 0xFF
+            ]);
+            
+            const trackHeader = new Uint8Array([
+                0x4D, 0x54, 0x72, 0x6B,
+                (track.data.length >> 24) & 0xFF,
+                (track.data.length >> 16) & 0xFF,
+                (track.data.length >> 8) & 0xFF,
+                track.data.length & 0xFF
+            ]);
+            
+            const midiFile = new Uint8Array(header.length + trackHeader.length + track.data.length);
+            midiFile.set(header, 0);
+            midiFile.set(trackHeader, header.length);
+            midiFile.set(track.data, header.length + trackHeader.length);
+            
+            const blob = new Blob([midiFile], { type: 'audio/midi' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${track.name.replace(/[^a-z0-9]/gi, '_')}.mid`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
