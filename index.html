@@ -369,12 +369,14 @@
                         }
                     }
                 }
-                
-                tracks.push({
-                    name: trackName,
-                    data: trackData,
-                    noteCount: noteCount
-                });
+
+                if (noteCount > 0) {
+                    tracks.push({
+                        name: trackName,
+                        data: trackData,
+                        noteCount: noteCount
+                    });
+                }
                 
                 pos = trackStart + trackLen;
             }
