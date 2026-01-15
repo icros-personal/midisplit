@@ -460,16 +460,16 @@
             
             const trackHeader = new Uint8Array([
                 0x4D, 0x54, 0x72, 0x6B,
-                (track.data.length >> 24) & 0xFF,
-                (track.data.length >> 16) & 0xFF,
-                (track.data.length >> 8) & 0xFF,
-                track.data.length & 0xFF
+                (trackData.length >> 24) & 0xFF,
+                (trackData.length >> 16) & 0xFF,
+                (trackData.length >> 8) & 0xFF,
+                trackData.length & 0xFF
             ]);
             
-            const midiFile = new Uint8Array(header.length + trackHeader.length + track.data.length);
+            const midiFile = new Uint8Array(header.length + trackHeader.length + trackData.length);
             midiFile.set(header, 0);
             midiFile.set(trackHeader, header.length);
-            midiFile.set(track.data, header.length + trackHeader.length);
+            midiFile.set(trackData, header.length + trackHeader.length);
             
             const blob = new Blob([midiFile], { type: 'audio/midi' });
             const url = URL.createObjectURL(blob);
