@@ -201,7 +201,7 @@ function createInstrumentSelect(index) {
 function displayTracks(filename) {
     fileInfo.innerHTML = `
         <h3>${filename}</h3>
-        <p>Format: ${parsedMidi.format} | Tracks: ${tracks.length} | Division: ${parsedMidi.division}</p>
+        <p>Format: ${parsedMidi.format} | Tracks: ${parsedMidi.tracks.length} | Division: ${parsedMidi.division}</p>
     `;
     
     trackList.innerHTML = '';
