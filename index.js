@@ -128,7 +128,7 @@ function parseMidi(data) {
                 
                 if (type === 0x03 && len > 0) {
                     trackName = String.fromCharCode(...trackData.slice(tPos, tPos + len));
-                } else if (type === 0x51 && len === 3) {
+                } else if (type === 0x51 && len === 3 && bpm !== undefined) {
                     if (bpm > 0) {
                         bpm = undefined;
                     } else {
