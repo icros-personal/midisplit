@@ -131,9 +131,10 @@ function parseMidi(data) {
                 } else if (type === 0x51 && len === 3) {
                     if (bpm > 0) {
                         bpm = undefined;
+                    } else {
+                        const microsecPerQuarter = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
+                        bpm = Math.round(60000000 / microsecPerQuarter);
                     }
-                    const microsecPerQuarter = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
-                    bpm = Math.round(60000000 / microsecPerQuarter);
                 }
                 tPos += len;
             } else if (status === 0xF0 || status === 0xF7) {
@@ -206,6 +207,19 @@ function createInstrumentSelect(index) {
     return el;
 }
 
+function createTempoSelect(index) {
+    const el = document.createElement('select');
+    el.id = `tempo-${index}`;
+    el.className = 'instrument-select';
+    el.innerHTML = `
+            <option value="1">Original</option>
+            <option value="0.75">Slow</option>
+            <option value="0.5">Slower</option>
+            <option value="0.25">Slowest</option>
+    `;
+    return el;
+}
+
 function displayTracks(filename) {
     fileInfo.innerHTML = `
         <h3>${filename}</h3>
@@ -227,31 +241,10 @@ function displayTracks(filename) {
         const controls = document.createElement('div');
         controls.className = 'track-controls';
         controls.appendChild(createInstrumentSelect(index));
-        let tempoInput;
-        if (track.bpm !== undefined) {
-            const tempoLabel = document.createElement('label');
-            tempoLabel.innerText = 'Tempo';
-            tempoInput = document.createElement('input');
-            tempoInput.type = 'number';
-            tempoInput.min = '20';
-            tempoInput.max = '300';
-            tempoInput.value = track.bpm;
-            tempoInput.className = 'tempo-input';
-            tempoLabel.appendChild(tempoInput);
-            controls.appendChild(tempoLabel);
-        }
+        controls.appendChild(createTempoSelect(index));
         const downloadButton = document.createElement('button');
         downloadButton.className = 'download-btn';
-        downloadButton.addEventListener('click', () => downloadTrack(filename.split('.')[0], index, () => {
-            if (track.bpm === undefined || !tempoInput) {
-                return undefined;
-            }
-            const value = parseInt(tempoInput.value, 10);
-            if (value >= 20 && value <= 300) {
-                return value;
-            }
-            return track.bpm;
-        }));
+        downloadButton.addEventListener('click', () => downloadTrack(filename.split('.')[0], index));
         downloadButton.innerHTML = 'Download';
         controls.appendChild(downloadButton);
         trackItem.appendChild(controls);
@@ -261,11 +254,12 @@ function displayTracks(filename) {
     tracksContainer.classList.add('active');
 }
 
-function downloadTrack(filename, index, getTempo) {
+function downloadTrack(filename, index) {
     const track = parsedMidi.tracks[index];
     const instrumentSelect = document.getElementById(`instrument-${index}`);
     const instrumentValue = parseInt(instrumentSelect.value);
-    const tempo = getTempo();
+    const tempoSelect = document.getElementById(`tempo-${index}`);
+    const tempoValue = parseFloat(tempoSelect.value);
     
     let trackData = track.data;
     
@@ -273,8 +267,8 @@ function downloadTrack(filename, index, getTempo) {
         trackData = changeInstrument(track.data, instrumentValue);
     }
 
-    if (tempo !== undefined && tempo !== track.bpm) {
-        trackData = changeTempo(trackData, tempo);
+    if (tempoValue > 0 && tempoValue < 1) {
+        trackData = changeTempo(trackData, tempoValue);
     }
     
     const header = new Uint8Array([
@@ -308,8 +302,7 @@ function downloadTrack(filename, index, getTempo) {
     URL.revokeObjectURL(url);
 }
 
-function changeTempo(trackData, newTempo) {
-    const microsPerQuarter = Math.round(60000000 / newTempo);
+function changeTempo(trackData, tempoMultiple) {
     const result = [];
     let pos = 0;
     let foundTempo = false;
@@ -345,6 +338,9 @@ function changeTempo(trackData, newTempo) {
             const len = trackData[pos++];
             
             if (type === 0x51 && len === 3) {
+                const originalTempo = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
+                const bpm = Math.round(60000000 / originalTempo);
+                const microsPerQuarter = Math.round(60000000 / (bpm * tempoMultiple));
                 foundTempo = true;
                 result.push(type, len);
                 result.push((microsPerQuarter >> 16) & 0xFF);
@@ -376,6 +372,7 @@ function changeTempo(trackData, newTempo) {
     }
     
     if (!foundTempo) {
+        const microsPerQuarter = Math.round(60000000 / (120 * tempoMultiple));
         const tempoEvent = [
             0x00,
             0xFF, 0x51, 0x03,
