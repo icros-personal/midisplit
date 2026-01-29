@@ -102,7 +102,7 @@ function parseMidi(data) {
         let trackName = `Track ${i + 1}`;
         let noteCount = 0;
         let tPos = 0;
-        let bpm = 120;
+        let bpm = 0;
         
         while (tPos < trackData.length) {
             const delta = readVarLen.call({}, trackData, tPos);
@@ -129,6 +129,9 @@ function parseMidi(data) {
                 if (type === 0x03 && len > 0) {
                     trackName = String.fromCharCode(...trackData.slice(tPos, tPos + len));
                 } else if (type === 0x51 && len === 3) {
+                    if (bpm > 0) {
+                        bpm = undefined;
+                    }
                     const microsecPerQuarter = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
                     bpm = Math.round(60000000 / microsecPerQuarter);
                 }
@@ -157,7 +160,7 @@ function parseMidi(data) {
                 name: trackName,
                 data: trackData,
                 noteCount,
-                bpm,
+                bpm: bpm === 0 ? 120 : bpm,
             });
         }
         
@@ -218,15 +221,36 @@ function displayTracks(filename) {
         trackInfo.className = 'track-info';
         trackInfo.innerHTML = `
             <div class="track-name">${track.name}</div>
-            <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes | BPM: ${track.bpm}</div>
+            <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes${track.bpm !== undefined ? `| BPM: ${track.bpm}` : ''}</div>
         `;
         trackItem.appendChild(trackInfo);
         const controls = document.createElement('div');
         controls.className = 'track-controls';
         controls.appendChild(createInstrumentSelect(index));
+        if (track.bpm !== undefined) {
+            const tempoLabel = document.createElement('label');
+            tempoLabel.innerText = 'Tempo';
+            const tempoInput = document.createElement('input');
+            tempoInput.type = 'number';
+            tempoInput.min = '20';
+            tempoInput.max = '300';
+            tempoInput.value = track.bpm;
+            tempoInput.className = 'tempo-input';
+            tempoLabel.appendChild(tempoInput);
+            controls.appendChild(tempoLabel);
+        }
         const downloadButton = document.createElement('button');
         downloadButton.className = 'download-btn';
-        downloadButton.addEventListener('click', () => downloadTrack(filename.split('.')[0], index));
+        downloadButton.addEventListener('click', () => downloadTrack(filename.split('.')[0], index, () => {
+            if (track.bpm === undefined) {
+                return undefined;
+            }
+            const value = parseInt(tempoInput.value, 10);
+            if (value >= 20 && value <= 300) {
+                return value;
+            }
+            return track.bpm;
+        }));
         downloadButton.innerHTML = 'Download';
         controls.appendChild(downloadButton);
         trackItem.appendChild(controls);
@@ -236,15 +260,20 @@ function displayTracks(filename) {
     tracksContainer.classList.add('active');
 }
 
-function downloadTrack(filename, index) {
+function downloadTrack(filename, index, getTempo) {
     const track = parsedMidi.tracks[index];
     const instrumentSelect = document.getElementById(`instrument-${index}`);
     const instrumentValue = parseInt(instrumentSelect.value);
+    const tempo = getTempo();
     
     let trackData = track.data;
     
     if (instrumentValue >= 0) {
         trackData = changeInstrument(track.data, instrumentValue);
+    }
+
+    if (tempo !== undefined && tempo !== track.bpm) {
+        trackData = changeTempo(trackData, tempo);
     }
     
     const header = new Uint8Array([
@@ -276,6 +305,87 @@ function downloadTrack(filename, index) {
     a.download = `${filename}-${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}.mid`;
     a.click();
     URL.revokeObjectURL(url);
+}
+
+function changeTempo(trackData, newTempo) {
+    const microsPerQuarter = Math.round(60000000 / newTempo);
+    const result = [];
+    let pos = 0;
+    let foundTempo = false;
+
+    function readVarLen() {
+        let val = 0;
+        let byte;
+        const start = pos;
+        do {
+            byte = trackData[pos++];
+            val = (val << 7) | (byte & 0x7f);
+        } while (byte & 0x80);
+        return { value: val, bytes: trackData.slice(start, pos) };
+    }
+
+    while (pos < trackData.length) {
+        const deltaTime = readVarLen();
+        result.push(...deltaTime.bytes);
+        
+        if (pos >= trackData.length) break;
+        
+        let status = trackData[pos];
+        
+        if ((status & 0x80) === 0) {
+            status = 0x90;
+        } else {
+            pos++;
+            result.push(status);
+        }
+        
+        if (status === 0xFF) {
+            const type = trackData[pos++];
+            const len = trackData[pos++];
+            
+            if (type === 0x51 && len === 3) {
+                foundTempo = true;
+                result.push(type, len);
+                result.push((microsPerQuarter >> 16) & 0xFF);
+                result.push((microsPerQuarter >> 8) & 0xFF);
+                result.push(microsPerQuarter & 0xFF);
+                pos += len;
+            } else {
+                result.push(type, len);
+                for (let i = 0; i < len; i++) {
+                    result.push(trackData[pos++]);
+                }
+            }
+        } else if (status === 0xF0 || status === 0xF7) {
+            const len = trackData[pos++];
+            result.push(len);
+            for (let i = 0; i < len; i++) {
+                result.push(trackData[pos++]);
+            }
+        } else {
+            const cmd = status & 0xF0;
+            
+            if (cmd === 0xC0 || cmd === 0xD0) {
+                result.push(trackData[pos++]);
+            } else if (cmd === 0x80 || cmd === 0x90 || cmd === 0xA0 || cmd === 0xB0 || cmd === 0xE0) {
+                result.push(trackData[pos++]);
+                result.push(trackData[pos++]);
+            }
+        }
+    }
+    
+    if (!foundTempo) {
+        const tempoEvent = [
+            0x00,
+            0xFF, 0x51, 0x03,
+            (microsPerQuarter >> 16) & 0xFF,
+            (microsPerQuarter >> 8) & 0xFF,
+            microsPerQuarter & 0xFF
+        ];
+        return new Uint8Array([...tempoEvent, ...result]);
+    }
+    
+    return new Uint8Array(result);
 }
 
 function changeInstrument(trackData, newInstrument) {
