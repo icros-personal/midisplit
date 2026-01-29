@@ -227,10 +227,11 @@ function displayTracks(filename) {
         const controls = document.createElement('div');
         controls.className = 'track-controls';
         controls.appendChild(createInstrumentSelect(index));
+        let tempoInput;
         if (track.bpm !== undefined) {
             const tempoLabel = document.createElement('label');
             tempoLabel.innerText = 'Tempo';
-            const tempoInput = document.createElement('input');
+            tempoInput = document.createElement('input');
             tempoInput.type = 'number';
             tempoInput.min = '20';
             tempoInput.max = '300';
@@ -242,7 +243,7 @@ function displayTracks(filename) {
         const downloadButton = document.createElement('button');
         downloadButton.className = 'download-btn';
         downloadButton.addEventListener('click', () => downloadTrack(filename.split('.')[0], index, () => {
-            if (track.bpm === undefined) {
+            if (track.bpm === undefined || !tempoInput) {
                 return undefined;
             }
             const value = parseInt(tempoInput.value, 10);
