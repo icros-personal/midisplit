@@ -223,6 +223,7 @@ function displayTracks(filename) {
         downloadButton.className = 'download-btn';
         downloadButton.addEventListener('click', () => downloadTrack(filename, index));
         controls.appendChild(downloadButton);
+        trackItem.appendChild(controls);
         trackList.appendChild(trackItem);
     });
     
