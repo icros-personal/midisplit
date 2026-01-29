@@ -222,6 +222,7 @@ function displayTracks(filename) {
         const downloadButton = document.createElement('button');
         downloadButton.className = 'download-btn';
         downloadButton.addEventListener('click', () => downloadTrack(filename, index));
+        downloadButton.innerHTML = 'Download';
         controls.appendChild(downloadButton);
         trackItem.appendChild(controls);
         trackList.appendChild(trackItem);
