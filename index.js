@@ -130,7 +130,7 @@ function parseMidi(data) {
                     trackName = String.fromCharCode(...trackData.slice(tPos, tPos + len));
                 } else if (type === 0x51 && len === 3) {
                     const microsecPerQuarter = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
-                    bpm = Math.round(60000000 / tempo);
+                    bpm = Math.round(60000000 / microsecPerQuarter);
                 }
                 tPos += len;
             } else if (status === 0xF0 || status === 0xF7) {
