@@ -162,6 +162,42 @@ function parseMidi(data) {
     return { format, numTracks, division, tracks };
 }
 
+function createInstrumentSelect(index) {
+    const el = document.createElement('select');
+    el.id = `instrument-${index}`;
+    el.className = 'instrument-select';
+    el.innerHTML = `
+            <option value="-1">Original</option>
+            <option value="0">Acoustic Grand Piano</option>
+            <option value="1">Bright Acoustic Piano</option>
+            <option value="4">Electric Piano 1</option>
+            <option value="5">Electric Piano 2</option>
+            <option value="6">Harpsichord</option>
+            <option value="11">Vibraphone</option>
+            <option value="24">Acoustic Guitar (nylon)</option>
+            <option value="25">Acoustic Guitar (steel)</option>
+            <option value="26">Electric Guitar (jazz)</option>
+            <option value="27">Electric Guitar (clean)</option>
+            <option value="32">Acoustic Bass</option>
+            <option value="33">Electric Bass (finger)</option>
+            <option value="40">Violin</option>
+            <option value="41">Viola</option>
+            <option value="42">Cello</option>
+            <option value="48">String Ensemble 1</option>
+            <option value="52">Choir Aahs</option>
+            <option value="56">Trumpet</option>
+            <option value="60">French Horn</option>
+            <option value="64">Soprano Sax</option>
+            <option value="65">Alto Sax</option>
+            <option value="66">Tenor Sax</option>
+            <option value="68">Oboe</option>
+            <option value="71">Clarinet</option>
+            <option value="73">Flute</option>
+            <option value="80">Square Lead</option>
+    `;
+    return el;
+}
+
 function displayTracks(filename) {
     fileInfo.innerHTML = `
         <h3>${filename}</h3>
@@ -173,51 +209,27 @@ function displayTracks(filename) {
     parsedMidi.tracks.forEach((track, index) => {
         const trackItem = document.createElement('div');
         trackItem.className = 'track-item';
-        trackItem.innerHTML = `
-            <div class="track-info">
-                <div class="track-name">${track.name}</div>
-                <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes</div>
-            </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <select id="instrument-${index}" style="padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-size: 13px;">
-                    <option value="-1">Original</option>
-                    <option value="0">Acoustic Grand Piano</option>
-                    <option value="1">Bright Acoustic Piano</option>
-                    <option value="4">Electric Piano 1</option>
-                    <option value="5">Electric Piano 2</option>
-                    <option value="6">Harpsichord</option>
-                    <option value="11">Vibraphone</option>
-                    <option value="24">Acoustic Guitar (nylon)</option>
-                    <option value="25">Acoustic Guitar (steel)</option>
-                    <option value="26">Electric Guitar (jazz)</option>
-                    <option value="27">Electric Guitar (clean)</option>
-                    <option value="32">Acoustic Bass</option>
-                    <option value="33">Electric Bass (finger)</option>
-                    <option value="40">Violin</option>
-                    <option value="41">Viola</option>
-                    <option value="42">Cello</option>
-                    <option value="48">String Ensemble 1</option>
-                    <option value="52">Choir Aahs</option>
-                    <option value="56">Trumpet</option>
-                    <option value="60">French Horn</option>
-                    <option value="64">Soprano Sax</option>
-                    <option value="65">Alto Sax</option>
-                    <option value="66">Tenor Sax</option>
-                    <option value="68">Oboe</option>
-                    <option value="71">Clarinet</option>
-                    <option value="73">Flute</option>
-                    <option value="80">Square Lead</option>
-                </select>
-                <button class="download-btn" onclick="downloadTrack(${index})">Download</button>
-            </div>
+        const trackInfo = document.createElement('div');
+        trackInfo.className = 'track-info';
+        trackInfo.innerHTML = `
+            <div class="track-name">${track.name}</div>
+            <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes</div>
         `;
+        trackItem.appendChild(trackInfo);
+        const controls = document.createElement('div');
+        controls.className = 'track-controls';
+        controls.appendChild(createInstrumentSelect(index));
+        const downloadButton = document.createElement('button');
+        downloadButton.className = 'download-btn';
+        downloadButton.addEventListener('click', () => downloadTrack(filename, index));
+        controls.appendChild(downloadButton);
         trackList.appendChild(trackItem);
     });
     
     tracksContainer.classList.add('active');
 }
 
-function downloadTrack(index) {
+function downloadTrack(filename, index) {
     const track = parsedMidi.tracks[index];
     const instrumentSelect = document.getElementById(`instrument-${index}`);
     const instrumentValue = parseInt(instrumentSelect.value);
@@ -254,7 +266,7 @@ function downloadTrack(index) {
     const a = document.createElement('a');
     a.href = url;
     const instName = instrumentValue >= 0 ? instrumentSelect.options[instrumentSelect.selectedIndex].text.replace(/[^a-z0-9]/gi, '_') : 'original';
-    a.download = `${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}.mid`;
+    a.download = `${filename}-${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}.mid`;
     a.click();
     URL.revokeObjectURL(url);
 }
