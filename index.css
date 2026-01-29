@@ -157,6 +157,13 @@
       font-size: 13px;
       color: #666;
   }
+
+  .instrument-select {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      font-size: 13px;
+  }
   
   .download-btn {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
