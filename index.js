@@ -102,6 +102,7 @@ function parseMidi(data) {
         let trackName = `Track ${i + 1}`;
         let noteCount = 0;
         let tPos = 0;
+        let bpm = 120;
         
         while (tPos < trackData.length) {
             const delta = readVarLen.call({}, trackData, tPos);
@@ -127,6 +128,9 @@ function parseMidi(data) {
                 
                 if (type === 0x03 && len > 0) {
                     trackName = String.fromCharCode(...trackData.slice(tPos, tPos + len));
+                } else if (type === 0x51 && len === 3) {
+                    const microsecPerQuarter = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
+                    bpm = Math.round(60000000 / tempo);
                 }
                 tPos += len;
             } else if (status === 0xF0 || status === 0xF7) {
@@ -152,7 +156,8 @@ function parseMidi(data) {
             tracks.push({
                 name: trackName,
                 data: trackData,
-                noteCount: noteCount
+                noteCount,
+                bpm,
             });
         }
         
@@ -213,7 +218,7 @@ function displayTracks(filename) {
         trackInfo.className = 'track-info';
         trackInfo.innerHTML = `
             <div class="track-name">${track.name}</div>
-            <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes</div>
+            <div class="track-details">Notes: ${track.noteCount} | Size: ${track.data.length} bytes | BPM: ${track.bpm}</div>
         `;
         trackItem.appendChild(trackInfo);
         const controls = document.createElement('div');
