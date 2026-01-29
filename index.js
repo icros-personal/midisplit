@@ -58,6 +58,7 @@ function handleFile(file) {
 
 function parseMidi(data) {
     let pos = 0;
+    let conductorTrack = undefined;
     
     function readChars(n) {
         return String.fromCharCode(...data.slice(pos, pos += n));
@@ -163,12 +164,19 @@ function parseMidi(data) {
                 noteCount,
                 bpm: bpm === 0 ? 120 : bpm,
             });
+        } else if (conductorTrack === undefined) {
+            conductorTrack = {
+                name: trackName,
+                data: trackData,
+                noteCount,
+                bpm: bpm === 0 ? 120 : bpm,
+            };
         }
         
         pos = trackStart + trackLen;
     }
     
-    return { format, numTracks, division, tracks };
+    return { format, numTracks, division, tracks, conductorTrack };
 }
 
 function createInstrumentSelect(index) {
@@ -262,9 +270,13 @@ function downloadTrack(filename, index) {
     const tempoValue = parseFloat(tempoSelect.value);
     
     let trackData = track.data;
+
+    if (parsedMidi.conductorTrack && parsedMidi.conductorTrack.index !== track.index) {
+        trackData = mergeConductorTrack(trackData, conductorTrack.data);
+    }
     
     if (instrumentValue >= 0) {
-        trackData = changeInstrument(track.data, instrumentValue);
+        trackData = changeInstrument(trackData, instrumentValue);
     }
 
     if (tempoValue > 0 && tempoValue < 1) {
@@ -297,9 +309,133 @@ function downloadTrack(filename, index) {
     const a = document.createElement('a');
     a.href = url;
     const instName = instrumentValue >= 0 ? instrumentSelect.options[instrumentSelect.selectedIndex].text.replace(/[^a-z0-9]/gi, '_') : 'original';
-    a.download = `${filename}-${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}.mid`;
+    const tempoName = tempoValue < 1 ? `_${tempoValue} : '';
+    a.download = `${filename}-${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}${tempoName}.mid`;
     a.click();
     URL.revokeObjectURL(url);
+}
+
+function mergeConductorTrack(trackData, conductorData) {
+    const tempoEvents = [];
+    let pos = 0;
+    let totalDelta = 0;
+    
+    function readVarLen(data, startPos) {
+        let val = 0;
+        let byte;
+        let p = startPos;
+        do {
+            byte = data[p++];
+            val = (val << 7) | (byte & 0x7f);
+        } while (byte & 0x80);
+        return { value: val, length: p - startPos };
+    }
+    
+    while (pos < conductorData.length) {
+        const delta = readVarLen(conductorData, pos);
+        pos += delta.length;
+        totalDelta += delta.value;
+        
+        if (pos >= conductorData.length) break;
+        
+        let status = conductorData[pos++];
+        
+        if (status === 0xFF) {
+            const type = conductorData[pos++];
+            const len = conductorData[pos++];
+            
+            if (type === 0x51 && len === 3) {
+                const tempo = (conductorData[pos] << 16) | (conductorData[pos + 1] << 8) | conductorData[pos + 2];
+                tempoEvents.push({
+                    deltaTime: totalDelta,
+                    tempo: tempo
+                });
+            }
+            pos += len;
+        } else if (status === 0xF0 || status === 0xF7) {
+            const len = conductorData[pos++];
+            pos += len;
+        } else {
+            const cmd = status & 0xF0;
+            if (cmd === 0xC0 || cmd === 0xD0) {
+                pos += 1;
+            } else if (cmd === 0x80 || cmd === 0x90 || cmd === 0xA0 || cmd === 0xB0 || cmd === 0xE0) {
+                pos += 2;
+            }
+        }
+    }
+    
+    if (tempoEvents.length === 0) return trackData;
+    
+    const result = [];
+    pos = 0;
+    totalDelta = 0;
+    let tempoIdx = 0;
+    
+    function writeVarLen(val) {
+        const bytes = [];
+        bytes.push(val & 0x7f);
+        val >>= 7;
+        while (val > 0) {
+            bytes.unshift((val & 0x7f) | 0x80);
+            val >>= 7;
+        }
+        return bytes;
+    }
+    
+    while (pos < trackData.length) {
+        const delta = readVarLen(trackData, pos);
+        const eventStart = pos;
+        pos += delta.length;
+        totalDelta += delta.value;
+        
+        while (tempoIdx < tempoEvents.length && tempoEvents[tempoIdx].deltaTime <= totalDelta) {
+            const tempoDelta = tempoIdx === 0 ? tempoEvents[tempoIdx].deltaTime : 
+                (tempoEvents[tempoIdx].deltaTime - (tempoIdx > 0 ? tempoEvents[tempoIdx - 1].deltaTime : 0));
+            
+            result.push(...writeVarLen(tempoIdx === 0 ? tempoDelta : 0));
+            result.push(0xFF, 0x51, 0x03);
+            result.push((tempoEvents[tempoIdx].tempo >> 16) & 0xFF);
+            result.push((tempoEvents[tempoIdx].tempo >> 8) & 0xFF);
+            result.push(tempoEvents[tempoIdx].tempo & 0xFF);
+            tempoIdx++;
+        }
+        
+        // Copy original event
+        for (let i = eventStart; i < pos && i < trackData.length; i++) {
+            result.push(trackData[i]);
+        }
+        
+        if (pos >= trackData.length) break;
+        
+        let status = trackData[pos++];
+        result.push(status);
+        
+        if (status === 0xFF) {
+            const type = trackData[pos++];
+            const len = trackData[pos++];
+            result.push(type, len);
+            for (let i = 0; i < len; i++) {
+                result.push(trackData[pos++]);
+            }
+        } else if (status === 0xF0 || status === 0xF7) {
+            const len = trackData[pos++];
+            result.push(len);
+            for (let i = 0; i < len; i++) {
+                result.push(trackData[pos++]);
+            }
+        } else {
+            const cmd = status & 0xF0;
+            if (cmd === 0xC0 || cmd === 0xD0) {
+                result.push(trackData[pos++]);
+            } else if (cmd === 0x80 || cmd === 0x90 || cmd === 0xA0 || cmd === 0xB0 || cmd === 0xE0) {
+                result.push(trackData[pos++]);
+                result.push(trackData[pos++]);
+            }
+        }
+    }
+    
+    return new Uint8Array(result);
 }
 
 function changeTempo(trackData, tempoMultiple) {
