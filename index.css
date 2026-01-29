@@ -170,6 +170,14 @@
       border: 1px solid #ddd;
       font-size: 13px;
   }
+
+  .tempo-input {
+        padding: 6px 8px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        font-size: 13px;
+        width: 60px;
+  }
   
   .download-btn {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
