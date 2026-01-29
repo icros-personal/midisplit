@@ -271,7 +271,7 @@ function downloadTrack(filename, index) {
     
     let trackData = track.data;
 
-    if (parsedMidi.conductorTrack && parsedMidi.conductorTrack.index !== track.index) {
+    if (parsedMidi.conductorTrack) {
         trackData = mergeConductorTrack(trackData, conductorTrack.data);
     }
     
