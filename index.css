@@ -158,6 +158,12 @@
       color: #666;
   }
 
+  .track-controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+  }
+
   .instrument-select {
       padding: 8px;
       border-radius: 4px;
