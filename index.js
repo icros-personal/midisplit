@@ -474,7 +474,7 @@ function changeTempo(trackData, tempoMultiple) {
             const len = trackData[pos++];
             
             if (type === 0x51 && len === 3) {
-                const originalTempo = (trackData[tPos] << 16) | (trackData[tPos + 1] << 8) | trackData[tPos + 2];
+                const originalTempo = (trackData[pos] << 16) | (trackData[pos + 1] << 8) | trackData[pos + 2];
                 const bpm = Math.round(60000000 / originalTempo);
                 const microsPerQuarter = Math.round(60000000 / (bpm * tempoMultiple));
                 foundTempo = true;
