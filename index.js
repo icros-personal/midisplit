@@ -272,7 +272,7 @@ function downloadTrack(filename, index) {
     let trackData = track.data;
 
     if (parsedMidi.conductorTrack) {
-        trackData = mergeConductorTrack(trackData, conductorTrack.data);
+        trackData = mergeConductorTrack(trackData, parsedMidi.conductorTrack.data);
     }
     
     if (instrumentValue >= 0) {
