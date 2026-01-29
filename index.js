@@ -309,7 +309,7 @@ function downloadTrack(filename, index) {
     const a = document.createElement('a');
     a.href = url;
     const instName = instrumentValue >= 0 ? instrumentSelect.options[instrumentSelect.selectedIndex].text.replace(/[^a-z0-9]/gi, '_') : 'original';
-    const tempoName = tempoValue < 1 ? `_${tempoValue} : '';
+    const tempoName = tempoValue < 1 ? `_${tempoValue}` : '';
     a.download = `${filename}-${track.name.replace(/[^a-z0-9]/gi, '_')}_${instName}${tempoName}.mid`;
     a.click();
     URL.revokeObjectURL(url);
